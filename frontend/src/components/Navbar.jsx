@@ -19,11 +19,19 @@ const Navbar = () => {
         <img src={assets.logo} className='w-36' alt="logo" />
       </Link>
 
-      <ul className='hidden sm:flex gap-5 text-sm text-gray-700'>
+      <ul className='hidden sm:flex gap-5 text-sm text-gray-700 items-center'>
         <NavLink to='/'>Home</NavLink>
         <NavLink to='/collection'>Collection</NavLink>
         <NavLink to='/about'>About</NavLink>
         <NavLink to='/contact'>Contact</NavLink>
+        <a
+          href={import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174'}
+          target='_blank'
+          rel='noreferrer'
+          className='text-xs font-medium bg-black text-white px-3 py-1.5 rounded-full hover:bg-gray-800 transition'
+        >
+          Admin Panel
+        </a>
       </ul>
 
       <div className='flex items-center gap-5'>
@@ -119,6 +127,15 @@ const Navbar = () => {
           <NavLink onClick={() => setVisible(false)} to='/collection'>COLLECTION</NavLink>
           <NavLink onClick={() => setVisible(false)} to='/about'>ABOUT</NavLink>
           <NavLink onClick={() => setVisible(false)} to='/contact'>CONTACT</NavLink>
+          <a
+            href={import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174'}
+            target='_blank'
+            rel='noreferrer'
+            onClick={() => setVisible(false)}
+            className='px-4 py-2 text-sm font-medium'
+          >
+            ADMIN PANEL
+          </a>
 
         </div>
       </div>
