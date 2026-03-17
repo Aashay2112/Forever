@@ -1,8 +1,33 @@
-import React from 'react'
+import React, { useState, useContext } from 'react'
 import Title from '../components/Title'
 import { assets } from '../assets/frontend_assets/assets'
+import { ShopContext } from '../context/ShopContext'
+import axios from 'axios'
+import { toast } from 'react-toastify'
 
 const Contact = () => {
+  const { backendUrl } = useContext(ShopContext);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+
+  const onSubmitHandler = async (event) => {
+    event.preventDefault();
+    try {
+      const response = await axios.post(backendUrl + '/api/feedback/add', { name, email, message });
+      if (response.data.success) {
+        toast.success(response.data.message);
+        setName('');
+        setEmail('');
+        setMessage('');
+      } else {
+        toast.error(response.data.message);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message);
+    }
+  };
 
   return (
 
@@ -61,13 +86,15 @@ const Contact = () => {
           <Title text1={'GET'} text2={'IN TOUCH'} />
         </div>
 
-        <form className='max-w-xl mx-auto flex flex-col gap-4'>
+        <form onSubmit={onSubmitHandler} className='max-w-xl mx-auto flex flex-col gap-4'>
 
           <input
             className='border px-4 py-2'
             type="text"
             placeholder='Your Name'
             required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
 
           <input
@@ -75,6 +102,8 @@ const Contact = () => {
             type="email"
             placeholder='Your Email'
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <textarea
@@ -82,6 +111,8 @@ const Contact = () => {
             rows="5"
             placeholder='Your Message'
             required
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
           ></textarea>
 
           <button
