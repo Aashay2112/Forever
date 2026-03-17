@@ -9,7 +9,7 @@ import Feedbacks from './pages/Feedbacks'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
-export const backend_url = import.meta.env.VITE_BACKEND_URL
+export const backend_url = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "")
 
 const App = () => {
 
