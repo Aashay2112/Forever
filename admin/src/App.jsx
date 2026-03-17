@@ -17,7 +17,7 @@ const App = () => {
 
   // If user not logged in, redirect to frontend login
   if (!token) {
-    window.location.href = 'http://localhost:5173/login';
+    window.location.href = (import.meta.env.VITE_FRONTEND_URL || 'http://localhost:5173') + '/login';
     return null;
   }
 
