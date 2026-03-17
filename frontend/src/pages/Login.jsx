@@ -54,11 +54,6 @@ const Login = () => {
 
       if (response.data.success) {
         setToken(response.data.token);
-        if (response.data.role === 'admin') {
-          // Redirect to admin panel
-          window.location.href = import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174';
-          return;
-        }
         navigate(from, { replace: true });
       } else {
         toast.error(response.data.message);
