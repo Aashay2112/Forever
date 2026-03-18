@@ -1,7 +1,7 @@
 import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
-dotenv.config({ path: '../.env' }) // ALWAYS LOAD THIS FIRST
+dotenv.config() // loads from backend/.env by default
 
 import connectDB from "./config/db.js"
 import connectCloudinary from "./config/cloudinary.js"

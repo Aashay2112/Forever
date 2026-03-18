@@ -3,12 +3,22 @@ import orderModel from "../models/orderModel.js";
 import userModel from "../models/userModel.js";
 import productModel from "../models/productModel.js";
 import Stripe from "stripe";
+import Razorpay from "razorpay";
 
-// Lazy initialize stripe when needed since ES modules hoist imports before dotenv config
+// Lazy initialize Stripe
 const getStripe = () => {
-  return process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY.replace(/"/g, '').trim()) : null;
+  return process.env.STRIPE_SECRET_KEY
+    ? new Stripe(process.env.STRIPE_SECRET_KEY.replace(/"/g, "").trim())
+    : null;
 };
 
+// Lazy initialize Razorpay
+const getRazorpay = () => {
+  const keyId = process.env.RAZORPAY_KEY_ID?.replace(/"/g, "").trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.replace(/"/g, "").trim();
+  if (!keyId || !keySecret) return null;
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+};
 
 // Place Order
 const placeOrder = async (req, res) => {
@@ -35,12 +45,15 @@ const placeOrder = async (req, res) => {
     req.user.cartData = {};
     await req.user.save();
 
-    // COD flow (no third-party payment)
+    // ── COD flow ─────────────────────────────────────────────────────────────
     if (paymentMethod === "cod") {
+      order.payment = true;
+      order.status = "Order Placed";
+      await order.save();
       return res.json({ success: true, message: "Order Placed", orderId: order._id });
     }
 
-    // Stripe Checkout flow
+    // ── Stripe flow ───────────────────────────────────────────────────────────
     if (paymentMethod === "stripe") {
       const stripe = getStripe();
       if (!stripe) {
@@ -63,8 +76,6 @@ const placeOrder = async (req, res) => {
           quantity: item.quantity,
         }));
 
-        console.log("Creating Stripe session with lineItems:", lineItems);
-
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ["card"],
           line_items: lineItems,
@@ -74,8 +85,6 @@ const placeOrder = async (req, res) => {
           metadata: { orderId: order._id.toString() },
         });
 
-        console.log("Stripe session created:", session.id);
-
         return res.json({ success: true, payment: "stripe", sessionUrl: session.url });
       } catch (stripeError) {
         console.error("Stripe error:", stripeError.message);
@@ -83,9 +92,82 @@ const placeOrder = async (req, res) => {
       }
     }
 
+    // ── Razorpay flow ─────────────────────────────────────────────────────────
+    if (paymentMethod === "razorpay") {
+      const razorpay = getRazorpay();
+      if (!razorpay) {
+        return res.json({
+          success: false,
+          message: "Razorpay is not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the backend .env.",
+        });
+      }
+
+      try {
+        // Razorpay amount is in paise (₹1 = 100 paise)
+        const rpOrder = await razorpay.orders.create({
+          amount: Math.round(amount * 100),
+          currency: currency,
+          receipt: order._id.toString(),
+        });
+
+        return res.json({
+          success: true,
+          payment: "razorpay",
+          razorpayOrderId: rpOrder.id,
+          amount: rpOrder.amount,
+          currency: rpOrder.currency,
+          orderId: order._id,
+          keyId: process.env.RAZORPAY_KEY_ID?.replace(/"/g, "").trim(),
+        });
+      } catch (rpError) {
+        console.error("Razorpay error:", rpError.message);
+        return res.json({ success: false, message: `Razorpay error: ${rpError.message}` });
+      }
+    }
+
     res.json({ success: false, message: "Invalid payment method" });
   } catch (error) {
     console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// Verify Razorpay Payment (called after modal success)
+const verifyRazorpay = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET?.replace(/"/g, "").trim();
+    if (!keySecret) {
+      return res.json({ success: false, message: "Razorpay secret not configured" });
+    }
+
+    // Verify signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", keySecret)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.json({ success: false, message: "Invalid payment signature" });
+    }
+
+    // Mark order as paid
+    const order = await orderModel.findById(orderId);
+    if (!order) {
+      return res.json({ success: false, message: "Order not found" });
+    }
+
+    order.payment = true;
+    order.status = "Paid";
+    order.paymentId = razorpay_payment_id;
+    order.paymentMethod = "razorpay";
+    await order.save();
+
+    res.json({ success: true, message: "Payment verified successfully" });
+  } catch (error) {
+    console.log("Razorpay verify error:", error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -112,7 +194,7 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-// Confirm Payment (called after Stripe success)
+// Confirm Payment (called after Stripe success redirect)
 const confirmPayment = async (req, res) => {
   try {
     const { orderId, paymentMethod, paymentId } = req.body;
@@ -139,7 +221,7 @@ const confirmPayment = async (req, res) => {
   }
 };
 
-// Stripe Webhook (use for production reliability)
+// Stripe Webhook
 const stripeWebhook = async (req, res) => {
   try {
     const stripe = getStripe();
@@ -186,4 +268,12 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-export { placeOrder, getUserOrders, getAllOrders, confirmPayment, stripeWebhook, updateOrderStatus };
+export {
+  placeOrder,
+  getUserOrders,
+  getAllOrders,
+  confirmPayment,
+  stripeWebhook,
+  verifyRazorpay,
+  updateOrderStatus,
+};

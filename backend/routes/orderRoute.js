@@ -8,6 +8,7 @@ import {
   updateOrderStatus,
   confirmPayment,
   stripeWebhook,
+  verifyRazorpay,
 } from "../controllers/orderController.js";
 
 const orderRouter = express.Router();
@@ -15,6 +16,7 @@ const orderRouter = express.Router();
 // User routes
 orderRouter.post("/place", userAuth, placeOrder);
 orderRouter.post("/confirm", userAuth, confirmPayment);
+orderRouter.post("/verify-razorpay", userAuth, verifyRazorpay);
 orderRouter.get("/userorders", userAuth, getUserOrders);
 
 // Webhooks (no auth)
